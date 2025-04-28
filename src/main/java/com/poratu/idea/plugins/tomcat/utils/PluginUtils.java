@@ -4,9 +4,8 @@ import com.intellij.execution.Location;
 import com.intellij.openapi.fileChooser.FileChooser;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
+import com.intellij.openapi.module.*;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleManager;
-import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
@@ -39,6 +38,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
@@ -103,13 +103,13 @@ public final class PluginUtils {
     private static Path defaultCatalinaBase(TomcatRunConfiguration configuration) {
         String userHome = System.getProperty("user.home");
         Project project = configuration.getProject();
-        Module module = configuration.getModule();
+       /* Module module = configuration.getModule();
 
         if (module == null) {
             return null;
-        }
+        } */
 
-        Path path = Paths.get(userHome, ".SmartTomcat", project.getName(), module.getName());
+        Path path = Paths.get(userHome, ".SmartTomcat", project.getName()); //, module.getName());
         if (!Files.exists(path)) {
             try {
                 Files.createDirectories(path);
@@ -197,9 +197,9 @@ public final class PluginUtils {
     }
 
     public static String extractContextPath(Module module) {
-        String name = module.getName();
+        String name = module.getName().toLowerCase(Locale.ROOT);
         String s = StringUtil.trimEnd(name, ".main");
-        return ArrayUtil.getLastElement(s.split("\\."));
+        return ArrayUtil.getLastElement(s.split("-"));
     }
 
     public static List<VirtualFile> findWebRoots(Module module) {
@@ -218,7 +218,7 @@ public final class PluginUtils {
 
         for (VirtualFile parentRoot : parentRoots) {
             fileIndex.iterateContentUnderDirectory(parentRoot, file -> {
-                Path path = Paths.get(file.getPath(), "WEB-INF");
+                Path path = Paths.get(file.getPath(), "WEB-INF/web.xml");
                 if (Files.exists(path)) {
                     webRoots.add(file);
                 }
@@ -264,7 +264,17 @@ public final class PluginUtils {
      */
     public static List<Module> getModules(Project project) {
         Module[] modules = ModuleManager.getInstance(project).getModules();
-        return Arrays.stream(modules).filter(module -> !module.getName().endsWith(".test")).collect(Collectors.toList());
+        return Arrays.stream(modules)
+                .filter(module -> !module.getName().endsWith(".test"))
+                .filter(module -> isJavaModule(module))
+                .collect(Collectors.toList());
+    }
+
+    private static boolean isJavaModule(Module module) {
+        if (module == null) return false;
+
+        // Check if the module has a Java module type
+        return ModuleType.get(module) instanceof JavaModuleType;
     }
 
     /**

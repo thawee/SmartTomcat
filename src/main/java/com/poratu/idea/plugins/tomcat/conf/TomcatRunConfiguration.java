@@ -36,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,10 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
         if (!tomcatInfos.isEmpty()) {
             tomcatOptions.setTomcatInfo(tomcatInfos.get(0));
         }
+
+        // Initialize with an empty list of webapp configs
+        tomcatOptions.setWebappConfigs(new ArrayList<>());
+
         addPredefinedTomcatLogFiles();
     }
 
@@ -96,6 +101,7 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
             throw new RuntimeConfigurationError("Tomcat server is not selected");
         }
 
+        /*
         if (StringUtil.isEmpty(getDocBase())) {
             throw new RuntimeConfigurationError("Deployment directory cannot be empty");
         }
@@ -106,6 +112,24 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
 
         if (getModule() == null) {
             throw new RuntimeConfigurationError("Module is not selected");
+        } */
+
+        if (getWebappConfigs()==null || getWebappConfigs().isEmpty()) {
+            throw new RuntimeConfigurationError("No webapp configurations defined");
+        }
+
+        for (WebappConfig webappConfig : getWebappConfigs()) {
+            if (StringUtil.isEmpty(webappConfig.getDocBase())) {
+                throw new RuntimeConfigurationError("Deployment directory cannot be empty");
+            }
+
+            if (StringUtil.isEmpty(webappConfig.getContextPath())) {
+                throw new RuntimeConfigurationError("Context path cannot be empty");
+            }
+
+            if (webappConfig.resolveModule(getProject()) == null) {
+                throw new RuntimeConfigurationError("Module is not selected for context path: " + webappConfig.getContextPath());
+            }
         }
 
         if (getPort() == null || getAdminPort() == null) {
@@ -116,14 +140,14 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
     @Override
     public void onNewConfigurationCreated() {
         super.onNewConfigurationCreated();
-
+        /*
         try {
             Project project = getProject();
             List<VirtualFile> webRoots = PluginUtils.findWebRoots(project);
 
             if (!webRoots.isEmpty()) {
                 VirtualFile webRoot = webRoots.get(0);
-                tomcatOptions.setDocBase(webRoot.getPath());
+               // tomcatOptions.setDocBase(webRoot.getPath());
                 Module module = PluginUtils.findContainingModule(webRoot.getPath(), project);
 
                 if (module == null) {
@@ -131,15 +155,46 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
                 }
 
                 if (module != null) {
-                    tomcatOptions.setContextPath("/" + PluginUtils.extractContextPath(module));
+                   // tomcatOptions.setContextPath("/" + PluginUtils.extractContextPath(module));
+                    // For backward compatibility
+                   // tomcatOptions.setDocBase(webRoot.getPath());
+                   // tomcatOptions.setContextPath("/" + PluginUtils.extractContextPath(module));
+                  //  configurationModule.setModule(module);
+
+                    // Add to webapp configs
+                    WebappConfig webappConfig = new WebappConfig(
+                            webRoot.getPath(),
+                            "/" + PluginUtils.extractContextPath(module),
+                            module
+                    );
+                    tomcatOptions.getWebappConfigs().add(webappConfig);
                 }
 
-                configurationModule.setModule(module);
+               // configurationModule.setModule(module);
             }
         } catch (Exception e) {
             //do nothing.
-        }
+        } */
 
+        try {
+            // Initialize with an empty list of webapp configs
+            tomcatOptions.setWebappConfigs(new ArrayList<>());
+
+            // Set default ports if they're not already set
+            if (tomcatOptions.getPort() == null) {
+                tomcatOptions.setPort(8080);
+            }
+
+            if (tomcatOptions.getAdminPort() == null) {
+                tomcatOptions.setAdminPort(8005);
+            }
+
+            // No automatic population of webapp configs - leave the list empty
+            // The user will add webapp configurations through the UI
+
+        } catch (Exception e) {
+            //do nothing.
+        }
     }
 
     @Override
@@ -177,9 +232,12 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
         }
 
         // for backward compatibility
-        if (configurationModule.getModule() == null) {
-            configurationModule.setModule(PluginUtils.findContainingModule(tomcatOptions.getDocBase(), getProject()));
-        }
+       // if (configurationModule.getModule() == null) {
+       //     configurationModule.setModule(PluginUtils.findContainingModule(tomcatOptions.getDocBase(), getProject()));
+      //  }
+
+        // Migrate from single webapp to multiple webapps
+       // migrateToMultipleWebapps();
     }
 
     @Override
@@ -214,6 +272,8 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
 
     public String getCatalinaBase() { return tomcatOptions.getCatalinaBase(); }
     public void setCatalinaBase(String catalinaBase) { tomcatOptions.setCatalinaBase(catalinaBase); }
+
+    /*
     public String getDocBase() {
         return tomcatOptions.getDocBase();
     }
@@ -228,7 +288,46 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
 
     public void setContextPath(String contextPath) {
         tomcatOptions.setContextPath(contextPath);
+    } */
+
+    public List<WebappConfig> getWebappConfigs() {
+        return tomcatOptions.getWebappConfigs();
     }
+
+    public void setWebappConfigs(List<WebappConfig> webappConfigs) {
+        tomcatOptions.setWebappConfigs(webappConfigs);
+    }
+
+    public void addWebappConfig(WebappConfig webappConfig) {
+        if(tomcatOptions.getWebappConfigs() == null) {
+            tomcatOptions.setWebappConfigs(new ArrayList<>());
+        }
+        tomcatOptions.getWebappConfigs().add(webappConfig);
+    }
+
+    public void removeWebappConfig(WebappConfig webappConfig) {
+        tomcatOptions.getWebappConfigs().remove(webappConfig);
+    }
+
+    /*
+    // Method to migrate from single webapp to multiple webapps (for backward compatibility)
+    private void migrateToMultipleWebapps() {
+        if(tomcatOptions.getWebappConfigs() == null) {
+            tomcatOptions.setWebappConfigs(new ArrayList<>());
+        }
+
+        if (tomcatOptions.getWebappConfigs().isEmpty() &&
+                tomcatOptions.getDocBase() != null &&
+                tomcatOptions.getContextPath() != null) {
+
+            WebappConfig config = new WebappConfig(
+                    tomcatOptions.getDocBase(),
+                    tomcatOptions.getContextPath(),
+                    getModule()
+            );
+            tomcatOptions.getWebappConfigs().add(config);
+        }
+    } */
 
     public Integer getPort() {
         return tomcatOptions.getPort();
@@ -299,8 +398,9 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
         private TomcatInfo tomcatInfo;
 
         private String catalinaBase;
-        private String docBase;
-        private String contextPath;
+        //private String docBase; // Keep these for backward compatibility
+        //private String contextPath; // Keep these for backward compatibility
+        private List<WebappConfig> webappConfigs;
         private Integer port = 8080;
         private Integer sslPort;
         private Integer adminPort = 8005;
@@ -308,6 +408,14 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
         private Map<String, String> envOptions;
         private Boolean passParentEnvs = true;
         private String extraClassPath;
+
+        public List<WebappConfig> getWebappConfigs() {
+            return webappConfigs;
+        }
+
+        public void setWebappConfigs(List<WebappConfig> webappConfigs) {
+            this.webappConfigs = webappConfigs;
+        }
 
         public TomcatInfo getTomcatInfo() {
             return tomcatInfo;
@@ -321,6 +429,7 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
         public String getCatalinaBase() { return this.catalinaBase; }
         public void setCatalinaBase(String catalinaBase) { this.catalinaBase = catalinaBase; }
 
+        /*
         @Nullable
         public String getDocBase() {
             return docBase;
@@ -336,7 +445,7 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
 
         public void setContextPath(String contextPath) {
             this.contextPath = contextPath;
-        }
+        } */
 
         public Integer getPort() {
             return port;

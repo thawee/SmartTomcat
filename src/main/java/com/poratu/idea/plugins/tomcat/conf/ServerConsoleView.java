@@ -96,18 +96,20 @@ public class ServerConsoleView extends ConsoleViewImpl {
 
     private List<Url> buildServerUrls() {
         List<Url> urls = new ArrayList<>();
-        String path = '/' + StringUtil.trimStart(configuration.getContextPath(), "/");
+        for(WebappConfig webappConfig: configuration.getWebappConfigs()) {
+            String path = '/' + StringUtil.trimStart(webappConfig.getContextPath(), "/");
 
-        for (String httpPort : httpPorts) {
-            boolean isDefaultPort = "80".equals(httpPort);
-            String authority = "localhost" + (isDefaultPort ? "" : ":" + httpPort);
-            urls.add(Urls.newHttpUrl(authority, path));
-        }
+            for (String httpPort : httpPorts) {
+                boolean isDefaultPort = "80".equals(httpPort);
+                String authority = "localhost" + (isDefaultPort ? "" : ":" + httpPort);
+                urls.add(Urls.newHttpUrl(authority, path));
+            }
 
-        for (String httpsPort : httpsPorts) {
-            boolean isDefaultPort = "443".equals(httpsPort);
-            String authority = "localhost" + (isDefaultPort ? "" : ":" + httpsPort);
-            urls.add(Urls.newUrl("https", authority, path));
+            for (String httpsPort : httpsPorts) {
+                boolean isDefaultPort = "443".equals(httpsPort);
+                String authority = "localhost" + (isDefaultPort ? "" : ":" + httpsPort);
+                urls.add(Urls.newUrl("https", authority, path));
+            }
         }
 
         return urls;

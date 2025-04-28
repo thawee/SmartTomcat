@@ -1,13 +1,11 @@
 package com.poratu.idea.plugins.tomcat.conf;
 
-import com.intellij.application.options.ModulesComboBox;
 import com.intellij.execution.configuration.EnvironmentVariablesTextFieldWithBrowseButton;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ModuleRootManager;
@@ -16,20 +14,23 @@ import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.CollectionComboBoxModel;
-import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.RawCommandLineEditor;
 import com.intellij.ui.UIBundle;
+import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.fields.ExtendableTextComponent;
 import com.intellij.ui.components.fields.ExtendableTextField;
+import com.intellij.ui.table.TableView;
 import com.intellij.util.Function;
+import com.intellij.util.ui.ColumnInfo;
 import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.ListTableModel;
 import com.poratu.idea.plugins.tomcat.setting.TomcatInfo;
 import com.poratu.idea.plugins.tomcat.setting.TomcatServerManagerState;
 import com.poratu.idea.plugins.tomcat.utils.PluginUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
@@ -56,10 +57,6 @@ public class TomcatRunnerSettingsForm implements Disposable {
     private final JPanel tomcatField = new JPanel(new BorderLayout());
     private final TomcatComboBox tomcatComboBox = new TomcatComboBox();
     private final TextFieldWithBrowseButton catalinaBaseField = new TextFieldWithBrowseButton();
-    private final TextFieldWithBrowseButton docBaseField = new TextFieldWithBrowseButton();
-    private final JPanel modulesComboBoxPanel = new JPanel(new GridBagLayout());
-    private final ModulesComboBox modulesComboBox = new ModulesComboBox();
-    private final JTextField contextPathField = new JTextField();
     private final JPanel portFieldPanel = new JPanel(new GridBagLayout());
     private final JPanel adminPortFieldPanel = new JPanel(new GridBagLayout());
     private final JTextField portField = new JTextField();
@@ -69,20 +66,101 @@ public class TomcatRunnerSettingsForm implements Disposable {
     private final EnvironmentVariablesTextFieldWithBrowseButton envOptions = new EnvironmentVariablesTextFieldWithBrowseButton();
     private final RawCommandLineEditor extraClassPath = new RawCommandLineEditor(PATH_SEPARATOR_LINE_PARSER, PATH_SEPARATOR_LINE_JOINER);
 
+    // New components for multiple webapp support
+    private final TableView<WebappConfig> webappsTable;
+    private final ListTableModel<WebappConfig> webappsModel;
 
     TomcatRunnerSettingsForm(Project project) {
         this.project = project;
 
         createTomcatField();
-        createClasspathField();
         createPortField();
         createAdminPortField();
+
+        // Initialize the webapps table
+        webappsModel = createWebappsTableModel();
+        webappsTable = new TableView<>(webappsModel);
+        webappsTable.setPreferredScrollableViewportSize(new Dimension(-1, 150));
 
         extraClassPath.getEditorField().getEmptyText().setText("Use '" + File.pathSeparator + "' to separate paths");
 
         initCatalinaBaseDirectory();
-        initDeploymentDirectory();
         buildForm();
+    }
+
+    private ListTableModel<WebappConfig> createWebappsTableModel() {
+        ColumnInfo<WebappConfig, String> docBaseColumn = new ColumnInfo<WebappConfig, String>("WebContent Directory") {
+            @Nullable
+            @Override
+            public String valueOf(WebappConfig webappConfig) {
+               // return webappConfig.getDocBase();
+                String docBase = webappConfig.getDocBase();
+                String moduleName = webappConfig.getModuleName();
+
+                if (docBase != null && moduleName != null && !moduleName.isEmpty()) {
+                    Module module = webappConfig.resolveModule(project);
+                    if (module != null) {
+                        VirtualFile[] contentRoots = ModuleRootManager.getInstance(module).getContentRoots();
+                        if (contentRoots.length > 0) {
+                            String modulePath = contentRoots[0].getParent().getPath();
+                            if (docBase.startsWith(modulePath)) {
+                                return docBase.substring(modulePath.length())
+                                        .replaceFirst("^/", ""); // Remove leading slash if present
+                            }
+                        }
+                    }
+                }
+                return docBase;
+            }
+
+            @Override
+            public void setValue(WebappConfig webappConfig, String value) {
+                webappConfig.setDocBase(value);
+            }
+
+            @Override
+            public boolean isCellEditable(WebappConfig webappConfig) {
+                return false; // We'll use a custom editor dialog
+            }
+        };
+
+        ColumnInfo<WebappConfig, String> contextPathColumn = new ColumnInfo<WebappConfig, String>("Context Path") {
+            @Nullable
+            @Override
+            public String valueOf(WebappConfig webappConfig) {
+                return webappConfig.getContextPath();
+            }
+
+            @Override
+            public void setValue(WebappConfig webappConfig, String value) {
+                webappConfig.setContextPath(value);
+            }
+
+            @Override
+            public boolean isCellEditable(WebappConfig webappConfig) {
+                return false; // We'll use a custom editor dialog
+            }
+        };
+
+        ColumnInfo<WebappConfig, String> moduleColumn = new ColumnInfo<WebappConfig, String>("Module") {
+            @Nullable
+            @Override
+            public String valueOf(WebappConfig webappConfig) {
+                return webappConfig.getModuleName();
+            }
+
+            @Override
+            public void setValue(WebappConfig webappConfig, String value) {
+                webappConfig.setModuleName(value);
+            }
+
+            @Override
+            public boolean isCellEditable(WebappConfig webappConfig) {
+                return false; // We'll use a custom editor dialog
+            }
+        };
+
+        return new ListTableModel<>(moduleColumn, contextPathColumn,docBaseColumn);
     }
 
     private void createTomcatField() {
@@ -90,15 +168,6 @@ public class TomcatRunnerSettingsForm implements Disposable {
         configurationButton.addActionListener(e -> PluginUtils.openTomcatConfiguration());
         tomcatField.add(tomcatComboBox, BorderLayout.CENTER);
         tomcatField.add(configurationButton, BorderLayout.EAST);
-    }
-
-    private void createClasspathField() {
-        GridBagConstraints c = new GridBagConstraints();
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.weightx = 1;
-        c.weighty = 1;
-        modulesComboBoxPanel.add(modulesComboBox, c);
-        modulesComboBox.setModules(PluginUtils.getModules(project));
     }
 
     private void createPortField() {
@@ -140,39 +209,58 @@ public class TomcatRunnerSettingsForm implements Disposable {
 
     private void initCatalinaBaseDirectory() {
         FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
-        catalinaBaseField.addBrowseFolderListener("Select Catalina Base", "Please select the Catalina Base directory",
-                project, descriptor);
+       // catalinaBaseField.addBrowseFolderListener("Select Catalina Base",
+       //         "Please select the Catalina Base directory",
+       //         project, descriptor);
+        catalinaBaseField.addBrowseFolderListener(project, descriptor);
     }
-    private void initDeploymentDirectory() {
-        FileChooserDescriptor descriptor = new IgnoreOutputFileChooserDescriptor(project);
-        docBaseField.addBrowseFolderListener("Select Deployment Directory", "Please the directory to deploy",
-                project, descriptor);
-        docBaseField.getTextField().getDocument().addDocumentListener(new DocumentAdapter() {
-            // Update module selection when docBase is changed
-            @Override
-            protected void textChanged(@NotNull DocumentEvent e) {
-                String docBase = docBaseField.getText();
-                Module module = PluginUtils.findContainingModule(docBase, project);
 
-                if (module != null) {
-                    modulesComboBox.setSelectedModule(module);
-                }
+    private JPanel createWebappsPanel() {
+        ToolbarDecorator toolbarDecorator = ToolbarDecorator.createDecorator(webappsTable)
+                .setAddAction(button -> addWebapp())
+                .setEditAction(button -> editWebapp())
+                .setRemoveAction(button -> removeWebapp())
+                .disableUpDownActions();
+
+        return toolbarDecorator.createPanel();
+    }
+
+    private void addWebapp() {
+        WebappConfig newConfig = new WebappConfig();
+        WebappConfigDialog dialog = new WebappConfigDialog(project, newConfig, true, webappsModel.getItems());
+        if (dialog.showAndGet()) {
+            webappsModel.addRow(newConfig);
+        }
+    }
+
+    private void editWebapp() {
+        WebappConfig selectedConfig = webappsTable.getSelectedObject();
+        if (selectedConfig != null) {
+            WebappConfigDialog dialog = new WebappConfigDialog(project, selectedConfig, false, webappsModel.getItems());
+            if (dialog.showAndGet()) {
+                webappsModel.fireTableDataChanged();
             }
-        });
+        }
+    }
+
+    private void removeWebapp() {
+        WebappConfig selectedConfig = webappsTable.getSelectedObject();
+        if (selectedConfig != null) {
+            webappsModel.removeRow(webappsTable.getSelectedRow());
+        }
     }
 
     private void buildForm() {
         FormBuilder builder = FormBuilder.createFormBuilder()
                 .addLabeledComponent("Tomcat server:", tomcatField)
                 .addLabeledComponent("Catalina base:", catalinaBaseField)
-                .addLabeledComponent("Deployment directory:", docBaseField)
-                .addLabeledComponent("Use classpath of module:", modulesComboBoxPanel)
-                .addLabeledComponent("Context path:", contextPathField)
                 .addLabeledComponent("Server port:", portFieldPanel)
                 .addLabeledComponent("Admin port:", adminPortFieldPanel)
                 .addLabeledComponent("VM options:", vmOptions)
                 .addLabeledComponent("Environment variables:", envOptions)
                 .addLabeledComponent("Extra JVM classpath:", extraClassPath)
+                .addSeparator(8)
+                .addComponent(createWebappsPanel())
                 .addComponentFillVertically(new JPanel(), 0);
 
         mainPanel = builder.getPanel();
@@ -192,9 +280,6 @@ public class TomcatRunnerSettingsForm implements Disposable {
             catalinaBaseField.setText("");
         }
 
-        docBaseField.setText(configuration.getDocBase());
-        modulesComboBox.setSelectedModule(configuration.getModule());
-        contextPathField.setText(configuration.getContextPath());
         portField.setText(String.valueOf(configuration.getPort()));
         sslPortField.setText(configuration.getSslPort() != null ? String.valueOf(configuration.getSslPort()) : "");
         adminPort.setText(String.valueOf(configuration.getAdminPort()));
@@ -204,15 +289,15 @@ public class TomcatRunnerSettingsForm implements Disposable {
         }
         envOptions.setPassParentEnvs(configuration.isPassParentEnvs());
         extraClassPath.setText(configuration.getExtraClassPath());
+
+        // Update webapps table
+        webappsModel.setItems(new ArrayList<>(configuration.getWebappConfigs()));
     }
 
     public void applyTo(TomcatRunConfiguration configuration) throws ConfigurationException {
         try {
             configuration.setTomcatInfo((TomcatInfo) tomcatComboBox.getSelectedItem());
             configuration.setCatalinaBase(catalinaBaseField.getText());
-            configuration.setDocBase(docBaseField.getText());
-            configuration.setModule(modulesComboBox.getSelectedModule());
-            configuration.setContextPath(contextPathField.getText());
             configuration.setPort(PluginUtils.parsePort(portField.getText()));
             configuration.setSslPort(StringUtil.isNotEmpty(sslPortField.getText()) ? PluginUtils.parsePort(sslPortField.getText()) : null);
             configuration.setAdminPort(PluginUtils.parsePort(adminPort.getText()));
@@ -220,6 +305,9 @@ public class TomcatRunnerSettingsForm implements Disposable {
             configuration.setEnvOptions(envOptions.getEnvs());
             configuration.setPassParentEnvironmentVariables(envOptions.isPassParentEnvs());
             configuration.setExtraClassPath(extraClassPath.getText());
+
+            // Update webapp configurations
+            configuration.setWebappConfigs(new ArrayList<>(webappsModel.getItems()));
         } catch (Exception e) {
             throw new ConfigurationException(e.getMessage());
         }
@@ -308,32 +396,6 @@ public class TomcatRunnerSettingsForm implements Disposable {
             });
         }
 
-    }
-
-    private static class IgnoreOutputFileChooserDescriptor extends FileChooserDescriptor {
-        private static final FileChooserDescriptor singleFolderDescriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
-        private final Project project;
-
-        public IgnoreOutputFileChooserDescriptor(Project project) {
-            super(singleFolderDescriptor);
-            this.project = project;
-        }
-
-        @Override
-        public boolean isFileVisible(VirtualFile file, boolean showHiddenFiles) {
-            Module[] modules = ModuleManager.getInstance(project).getModules();
-
-            for (Module module : modules) {
-                VirtualFile[] excludeRoots = ModuleRootManager.getInstance(module).getExcludeRoots();
-                for (VirtualFile excludeFile : excludeRoots) {
-                    if (excludeFile.equals(file)) {
-                        return false;
-                    }
-                }
-            }
-
-            return super.isFileVisible(file, showHiddenFiles);
-        }
     }
 
 }

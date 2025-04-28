@@ -1,7 +1,14 @@
 <!-- Keep a Changelog guide -> https://keepachangelog.com -->
 # SmartTomcat Changelog
 
+## Unreleased
+
 ##[4.7.4]
+
+### Added
+- add "Mark Directory as -> Tomcat Webapp Root" to make java module and create tomcat run config
+- support multiple module for each tomcat run configuration
+
 
 ### Fixed
 - write change log in plugin.xml

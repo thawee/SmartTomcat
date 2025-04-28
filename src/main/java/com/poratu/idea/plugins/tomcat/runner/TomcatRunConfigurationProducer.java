@@ -16,12 +16,16 @@ import com.intellij.psi.PsiElement;
 import com.intellij.util.containers.ContainerUtil;
 import com.poratu.idea.plugins.tomcat.conf.TomcatRunConfiguration;
 import com.poratu.idea.plugins.tomcat.conf.TomcatRunConfigurationType;
+import com.poratu.idea.plugins.tomcat.conf.WebappConfig;
 import com.poratu.idea.plugins.tomcat.setting.TomcatInfo;
 import com.poratu.idea.plugins.tomcat.setting.TomcatServerManagerState;
 import com.poratu.idea.plugins.tomcat.utils.PluginUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class TomcatRunConfigurationProducer extends LazyRunConfigurationProducer<TomcatRunConfiguration> {
@@ -59,8 +63,13 @@ public class TomcatRunConfigurationProducer extends LazyRunConfigurationProducer
         }
         String contextPath = PluginUtils.extractContextPath(module);
         configuration.setName("Tomcat: " + contextPath);
-        configuration.setDocBase(webRoots.get(0).getPath());
-        configuration.setContextPath("/" + contextPath);
+        WebappConfig webappConfig = new WebappConfig();
+        webappConfig.setModuleName(module.getName());
+        webappConfig.setDocBase(webRoots.get(0).getPath());
+        webappConfig.setContextPath("/" + contextPath);
+        configuration.setWebappConfigs(Arrays.asList(webappConfig));
+        //configuration.setDocBase(webRoots.get(0).getPath());
+        //configuration.setContextPath("/" + contextPath);
 
         return true;
     }
@@ -76,8 +85,10 @@ public class TomcatRunConfigurationProducer extends LazyRunConfigurationProducer
             return false;
         }
 
-        List<VirtualFile> webRoots = findWebRoots(context.getLocation());
-        return webRoots.stream().anyMatch(webRoot -> webRoot.getPath().equals(configuration.getDocBase()));
+        return false;
+
+      //  List<VirtualFile> webRoots = findWebRoots(context.getLocation());
+      //  return webRoots.stream().anyMatch(webRoot -> webRoot.getPath().equals(configuration.getDocBase()));
     }
 
     private List<VirtualFile> findWebRoots(@Nullable Location<?> location) {

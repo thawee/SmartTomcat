@@ -45,6 +45,7 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -106,8 +107,9 @@ public class TomcatCommandLineState extends JavaCommandLineState {
     protected JavaParameters createJavaParameters() {
         try {
             Path catalinaBase = PluginUtils.getCatalinaBase(configuration);
-            Module module = configuration.getModule();
-            if (catalinaBase == null || module == null) {
+           // Module module = configuration.getModule();
+           // if (catalinaBase == null || module == null) {
+            if (catalinaBase == null || configuration.getWebappConfigs().isEmpty()) {
                 throw new ExecutionException("The Module Root specified is not a module according to Intellij");
             }
 
@@ -119,7 +121,7 @@ public class TomcatCommandLineState extends JavaCommandLineState {
             Map<String, String> envOptions = configuration.getEnvOptions();
 
             //copy to project folder, and then user is able to update server.xml under the project.
-            Path projectConfPath = Paths.get(project.getBasePath(), ".smarttomcat", module.getName(), "conf");
+            Path projectConfPath = Paths.get(project.getBasePath(), ".smarttomcat", configuration.getName(), "conf");
             if (!projectConfPath.toFile().exists()) {
                 FileUtil.createDirectory(projectConfPath.toFile());
                 FileUtil.copyDir(tomcatInstallationPath.resolve("conf").toFile(), projectConfPath.toFile());
@@ -130,11 +132,14 @@ public class TomcatCommandLineState extends JavaCommandLineState {
             FileUtil.delete(confPath);
             FileUtil.createDirectory(confPath.toFile());
             FileUtil.copyDir(projectConfPath.toFile(), confPath.toFile());
+
+            updateServerConf(confPath, configuration);
+            
             // create the temp folder
             FileUtil.createDirectory(catalinaBase.resolve("temp").toFile());
 
-            updateServerConf(confPath, configuration);
-            createContextFile(tomcatVersion, module, confPath);
+            createContextFiles(tomcatVersion, confPath);
+
             deleteTomcatWorkFiles(catalinaBase);
 
             ProjectRootManager manager = ProjectRootManager.getInstance(project);
@@ -226,6 +231,41 @@ public class TomcatCommandLineState extends JavaCommandLineState {
         PluginUtils.createTransformer().transform(new DOMSource(doc), new StreamResult(serverXml.toFile()));
     }
 
+    private void createContextFiles(String tomcatVersion, Path confPath) throws ParserConfigurationException, IOException, TransformerException, SAXException {
+        List<WebappConfig> list = configuration.getWebappConfigs();
+        for(WebappConfig config: list) {
+            createContextFile(tomcatVersion, config, confPath);
+        }
+    }
+
+    private void createContextFile(String tomcatVersion, WebappConfig webappConfig, Path confPath)
+            throws ParserConfigurationException, IOException, SAXException, TransformerException {
+        Module module = webappConfig.resolveModule(configuration.getProject());
+        String docBase = webappConfig.getDocBase();//  configuration.getDocBase();
+        String contextPath = webappConfig.getContextPath(); // configuration.getContextPath();
+        String normalizedContextPath = StringUtil.trim(contextPath, ch -> ch != '/');
+        String contextFileName = StringUtil.defaultIfEmpty(normalizedContextPath, "ROOT").replace('/', '#');
+        Path contextFilesDir = confPath.resolve("Catalina/localhost");
+        Path contextFilePath = contextFilesDir.resolve(contextFileName + ".xml");
+
+        // Create `conf/Catalina/localhost` folder
+        FileUtil.createDirectory(contextFilesDir.toFile());
+
+        DocumentBuilder builder = PluginUtils.createDocumentBuilder();
+        Document doc = builder.newDocument();
+        Element contextRoot = createContextElement(webappConfig, doc, builder);
+
+        contextRoot.setAttribute("docBase", docBase);
+
+        collectResources(doc, contextRoot, module, tomcatVersion);
+        doc.appendChild(contextRoot);
+
+        StringWriter writer = new StringWriter();
+        PluginUtils.createTransformer().transform(new DOMSource(doc), new StreamResult(writer));
+        FileUtil.writeToFile(contextFilePath.toFile(), writer.toString());
+    }
+
+    /*
     private void createContextFile(String tomcatVersion, Module module, Path confPath)
             throws ParserConfigurationException, IOException, SAXException, TransformerException {
         String docBase = configuration.getDocBase();
@@ -250,10 +290,10 @@ public class TomcatCommandLineState extends JavaCommandLineState {
         StringWriter writer = new StringWriter();
         PluginUtils.createTransformer().transform(new DOMSource(doc), new StreamResult(writer));
         FileUtil.writeToFile(contextFilePath.toFile(), writer.toString());
-    }
+    } */
 
-    private Element createContextElement(Document doc, DocumentBuilder builder) throws IOException, SAXException {
-        Path contextFile = findContextFileInApp();
+    private Element createContextElement(WebappConfig webappConfig, Document doc, DocumentBuilder builder) throws IOException, SAXException {
+        Path contextFile = findContextFileInApp(webappConfig);
 
         if (contextFile == null) {
             return doc.createElement("Context");
@@ -263,8 +303,8 @@ public class TomcatCommandLineState extends JavaCommandLineState {
         return (Element) doc.importNode(contextEl, true);
     }
 
-    private Path findContextFileInApp() {
-        String docBase = configuration.getDocBase();
+    private Path findContextFileInApp(WebappConfig webappConfig) {
+        String docBase = webappConfig.getDocBase();
         if (docBase == null) {
             return null;
         }

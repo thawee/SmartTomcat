@@ -1,11 +1,15 @@
 <idea-plugin>
+    <id>com.poratu.idea.plugins.tomcat</id>
     <name>Smart Tomcat</name>
     <vendor email="zengkid@msn.com">zengkid</vendor>
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
-    <idea-version since-build="193.5233.102"/>
 
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
-         on how to target different products -->
+
+    <description><![CDATA[
+    ]]></description>     on how to target different products -->
+
+    <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
@@ -20,6 +24,14 @@
         <registryKey key="smartTomcat.resources.cacheMaxSize" description="The maximum size of the static resource cache in kilobytes." defaultValue="10240" restartRequired="false" />
     </extensions>
 
-    <actions/>
+    <actions>
+        <action id="com.poratu.idea.plugins.tomcat.action.SetupWebAppRootAction"
+                class="com.poratu.idea.plugins.tomcat.action.SetupWebAppRootAction"
+                text="Tomcat Webapp Root"
+                icon="/icon/tomcat.svg"
+                description="Webapp directory">
+            <add-to-group group-id="MarkRootGroup" anchor="last"/>
+        </action>
+    </actions>
 
 </idea-plugin>

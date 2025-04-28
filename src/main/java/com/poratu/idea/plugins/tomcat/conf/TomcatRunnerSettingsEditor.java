@@ -26,8 +26,7 @@ public class TomcatRunnerSettingsEditor extends SettingsEditor<TomcatRunConfigur
     }
 
     @Override
-   protected @NotNull JComponent createEditor() {
+    protected @NotNull JComponent createEditor() {
         return form.getMainPanel();
     }
-
 }
