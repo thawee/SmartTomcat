@@ -3,12 +3,21 @@
 
 ## Unreleased
 
-##[4.7.4]
+## [4.7.5]
 
 ### Added
-- add "Mark Directory as -> Tomcat Webapp Root" to make java module and create tomcat run config
-- support multiple module for each tomcat run configuration
+- add action "Mark Directory as -> Tomcat Webapp Root" to make java module and create tomcat run config
+- support multiple modules for each tomcat run configuration
 
+### Fixed
+- Do not copy Tomcat configs file when /.smarttomcat//conf folder is empty (#141)
+- Enhance the XPath selector for port (#128)
+
+## [4.7.4]
+
+### Added
+- add action "Mark Directory as -> Tomcat Webapp Root" to make java module and create tomcat run config
+- support multiple modules for each tomcat run configuration
 
 ### Fixed
 - write change log in plugin.xml
