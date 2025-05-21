@@ -6,8 +6,10 @@
 ## [4.7.5]
 
 ### Added
+- create global library for tomcat server
 - add action "Mark Directory as -> Tomcat Webapp Root" to make java module and create tomcat run config
 - support multiple modules for each tomcat run configuration
+- support debug java code
 
 ### Fixed
 - Do not copy Tomcat configs file when /.smarttomcat//conf folder is empty (#141)

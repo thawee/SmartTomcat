@@ -2,15 +2,15 @@ package com.poratu.idea.plugins.tomcat.conf;
 
 import com.intellij.debugger.settings.DebuggerSettings;
 import com.intellij.execution.ExecutionException;
+import com.intellij.execution.ExecutionResult;
 import com.intellij.execution.Executor;
-import com.intellij.execution.configurations.GeneralCommandLine;
-import com.intellij.execution.configurations.JavaCommandLineState;
-import com.intellij.execution.configurations.JavaParameters;
-import com.intellij.execution.configurations.ParametersList;
+import com.intellij.execution.configurations.*;
+import com.intellij.execution.executors.DefaultDebugExecutor;
 import com.intellij.execution.process.KillableColoredProcessHandler;
 import com.intellij.execution.process.OSProcessHandler;
 import com.intellij.execution.process.ProcessTerminatedListener;
 import com.intellij.execution.runners.ExecutionEnvironment;
+import com.intellij.execution.runners.ProgramRunner;
 import com.intellij.execution.ui.ConsoleView;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
@@ -45,6 +45,7 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,6 +63,7 @@ public class TomcatCommandLineState extends JavaCommandLineState {
             "--add-opens=java.base/java.util=ALL-UNNAMED " +
             "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED " +
             "--add-opens=java.rmi/sun.rmi.transport=ALL-UNNAMED";
+    //private static final String JAVA_DEBUG_OPTIONS = "-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8081 ";
 
     private static final String TOMCAT_MAIN_CLASS = "org.apache.catalina.startup.Bootstrap";
     private static final String PARAM_CATALINA_HOME = "catalina.home";
@@ -87,14 +89,21 @@ public class TomcatCommandLineState extends JavaCommandLineState {
 
         // Set JDK_JAVA_OPTIONS
         String originalJdkJavaOptions = commandLine.getEnvironment().get(JDK_JAVA_OPTIONS);
-        String jdkJavaOptions = originalJdkJavaOptions == null ? ENV_JDK_JAVA_OPTIONS : originalJdkJavaOptions + " " + ENV_JDK_JAVA_OPTIONS;
+        String jdkJavaOptions = originalJdkJavaOptions == null ? ENV_JDK_JAVA_OPTIONS : (originalJdkJavaOptions + " " + ENV_JDK_JAVA_OPTIONS);
+
+        // Only add debug options when in debug mode
+       // boolean isDebugMode = getEnvironment().getExecutor().getId().equals(DefaultDebugExecutor.EXECUTOR_ID);
+       // if (isDebugMode) {
+       //     jdkJavaOptions += " " + JAVA_DEBUG_OPTIONS;
+       // }
+
         return commandLine.withEnvironment(JDK_JAVA_OPTIONS, jdkJavaOptions);
     }
 
     @Override
     @NotNull
     protected OSProcessHandler startProcess() throws ExecutionException {
-        KillableColoredProcessHandler processHandler = new KillableColoredProcessHandler(createCommandLine());
+        KillableColoredProcessHandler processHandler = new TomcatProcessHandler(createCommandLine());
         boolean shouldKillSoftly = !DebuggerSettings.getInstance().KILL_PROCESS_IMMEDIATELY;
 
         processHandler.setShouldKillProcessSoftly(shouldKillSoftly);
@@ -171,6 +180,13 @@ public class TomcatCommandLineState extends JavaCommandLineState {
             vmParams.defineProperty(PARAM_LOGGING_CONFIG, confPath.resolve("logging.properties").toString());
             vmParams.defineProperty(PARAM_LOGGING_MANAGER, PARAM_LOGGING_MANAGER_VALUE);
 
+            // Only add debug options when in debug mode
+            boolean isDebugMode = getEnvironment().getExecutor().getId().equals(DefaultDebugExecutor.EXECUTOR_ID);
+            if (isDebugMode) {
+                vmParams.add("-Xdebug");
+                vmParams.add("-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005");
+            }
+
             return javaParams;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -246,7 +262,7 @@ public class TomcatCommandLineState extends JavaCommandLineState {
         String contextPath = webappConfig.getContextPath(); // configuration.getContextPath();
         String normalizedContextPath = StringUtil.trim(contextPath, ch -> ch != '/');
         String contextFileName = StringUtil.defaultIfEmpty(normalizedContextPath, "ROOT").replace('/', '#');
-        Path contextFilesDir = confPath.resolve("Catalina/localhost");
+        Path contextFilesDir = confPath.resolve(Paths.get("Catalina", "localhost"));
         Path contextFilePath = contextFilesDir.resolve(contextFileName + ".xml");
 
         // Create `conf/Catalina/localhost` folder
@@ -361,7 +377,7 @@ public class TomcatCommandLineState extends JavaCommandLineState {
         } else if (majorVersion >= 6) {
             Element loader = doc.createElement("Loader");
             loader.setAttribute("className", "org.apache.catalina.loader.VirtualWebappLoader");
-            loader.setAttribute("virtualClasspath", StringUtil.join(pathsList.getPathList(), ";"));
+            loader.setAttribute("virtualClasspath", StringUtil.join(pathsList.getPathList(), File.pathSeparator));
             contextRoot.appendChild(loader);
         } else {
             throw new RuntimeException("Unsupported Tomcat version: " + tomcatVersion);
@@ -398,4 +414,21 @@ public class TomcatCommandLineState extends JavaCommandLineState {
         });
     }
 
+    private class TomcatProcessHandler extends KillableColoredProcessHandler implements RemoteState {
+        public TomcatProcessHandler(GeneralCommandLine commandLine) throws ExecutionException {
+            super(commandLine);
+        }
+
+        @NotNull
+        @Override
+        public RemoteConnection getRemoteConnection() {
+            // Create a remote connection for the debugger
+            return new RemoteConnection(true, "localhost", "5005", false);
+        }
+
+        @Override
+        public @Nullable ExecutionResult execute(Executor executor, @NotNull ProgramRunner<?> programRunner) throws ExecutionException {
+            return null;
+        }
+    }
 }

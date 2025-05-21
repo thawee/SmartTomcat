@@ -2,6 +2,9 @@ package com.poratu.idea.plugins.tomcat.action;
 
 import com.intellij.execution.RunManager;
 import com.intellij.execution.RunnerAndConfigurationSettings;
+import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationType;
+import com.intellij.notification.Notifications;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.module.JavaModuleType;
@@ -12,8 +15,9 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.roots.libraries.Library;
+import com.intellij.openapi.roots.libraries.LibraryTable;
+import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.poratu.idea.plugins.tomcat.conf.TomcatRunConfiguration;
 import com.poratu.idea.plugins.tomcat.conf.TomcatRunConfigurationType;
@@ -22,6 +26,7 @@ import com.poratu.idea.plugins.tomcat.utils.PluginUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaResourceRootType;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -30,6 +35,8 @@ import java.util.List;
 import java.util.Locale;
 
 public class SetupWebAppRootAction extends AnAction implements ActionUpdateThreadAware {
+
+    private @NotNull String PLUGIN_ID = "com.poratu.idea.plugins.tomcat";
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
@@ -50,9 +57,10 @@ public class SetupWebAppRootAction extends AnAction implements ActionUpdateThrea
     }
 
     private void checkAndMakeModuleRoot(Project project, VirtualFile directory) {
-        boolean isModuleRoot = false;
         ModuleManager moduleManager = ModuleManager.getInstance(project);
         Module[] modules = moduleManager.getModules();
+        Module existingModule = null;
+        String title = "Tomcat Webapp Root";
 
         // Check if this directory is already a module root
         for (Module module : modules) {
@@ -61,22 +69,36 @@ public class SetupWebAppRootAction extends AnAction implements ActionUpdateThrea
 
             for (VirtualFile root : contentRoots) {
                 if (directory.equals(root)) {
-                    isModuleRoot = true;
+                    existingModule = module;
                     break;
                 }
             }
 
-            if (isModuleRoot) break;
+            if (existingModule != null) break;
         }
 
-        if (!isModuleRoot) {
+        if (existingModule != null) {
+            // Directory is already a module root, just update libraries and add Tomcat library
+            Module finalExistingModule = existingModule;
+            ApplicationManager.getApplication().runWriteAction(() -> {
+                // Configure Tomcat run configuration
+                TomcatRunConfiguration runConfig = configureTomcatRunConfiguration(project, finalExistingModule, directory);
+
+                // Update existing module structure
+                updateModuleLibraries(project, finalExistingModule, directory, runConfig.getTomcatInfo().getName());
+
+                String content ="Java module is updated with dependencies, and added to tomcat run configuration";
+                Notification notification = new Notification(PLUGIN_ID, title, content, NotificationType.INFORMATION);
+                Notifications.Bus.notify(notification);
+            });
+        } else {
             // Directory is not a module root, so create a new module with this directory as root
             try {
                 ModifiableModuleModel modifiableModuleModel = moduleManager.getModifiableModel();
 
                 // Create a new module with the directory name
                 String moduleName = directory.getName();
-                String modulePath = directory.getPath() + "/" + moduleName + ".iml";
+                String modulePath = Paths.get(directory.getPath(), moduleName + ".iml").toString();
 
                 // Create a general module
                 Module newModule = modifiableModuleModel.newModule(modulePath, JavaModuleType.getModuleType().getId());
@@ -87,14 +109,110 @@ public class SetupWebAppRootAction extends AnAction implements ActionUpdateThrea
 
                     // Configure module structure
                     configureModuleStructure(project, newModule, directory);
+
+                    String content ="New java module is created, and added to tomcat run configuration";
+                    Notification notification = new Notification(PLUGIN_ID, title, content, NotificationType.INFORMATION);
+                    Notifications.Bus.notify(notification);
                 });
             } catch (Exception ex) {
-                ex.printStackTrace();
+                String content = "Problem occurred - " + ex.getMessage();
+                Notification notification = new Notification(PLUGIN_ID, title, content, NotificationType.ERROR);
+                Notifications.Bus.notify(notification);
             }
         }
     }
 
+    private void updateModuleLibraries(Project project, Module module, VirtualFile rootDirectory, String tomcatName) {
+        ModuleRootManager rootManager = ModuleRootManager.getInstance(module);
+        ModifiableRootModel modifiableRootModel = rootManager.getModifiableModel();
+
+        // Remove existing EndorsedLibs and WebInfLibs if they exist
+        for (OrderEntry entry : modifiableRootModel.getOrderEntries()) {
+            if (entry instanceof LibraryOrderEntry libraryEntry) {
+                String libraryName = libraryEntry.getLibraryName();
+                if (libraryName != null && (libraryName.equals("EndorsedLibs") || libraryName.equals("WebInfLibs") || libraryName.equals(tomcatName))) {
+                    Library library = libraryEntry.getLibrary();
+                    if (library != null) {
+                        modifiableRootModel.getModuleLibraryTable().removeLibrary(library);
+                    }
+                }
+            }
+        }
+
+        // Add libraries from WebContent/WEB-INF/lib
+        VirtualFile webContentDir = rootDirectory.findChild("WebContent");
+        if (webContentDir != null && webContentDir.isDirectory()) {
+            VirtualFile webInfDir = webContentDir.findChild("WEB-INF");
+            if (webInfDir != null && webInfDir.isDirectory()) {
+                VirtualFile libDir = webInfDir.findChild("lib");
+                if (libDir != null && libDir.isDirectory()) {
+                    // Create a single project library for all JARs
+                    Library library = modifiableRootModel.getModuleLibraryTable().createLibrary("WebInfLibs");
+                    Library.ModifiableModel libraryModel = library.getModifiableModel();
+                    for (VirtualFile jarFile : libDir.getChildren()) {
+                        if (jarFile.getExtension() != null && jarFile.getExtension().equalsIgnoreCase("jar")) {
+                            VirtualFile jarRoot = com.intellij.openapi.vfs.JarFileSystem.getInstance().getJarRootForLocalFile(jarFile);
+                            if (jarRoot != null) {
+                                libraryModel.addRoot(jarRoot, OrderRootType.CLASSES);
+                            }
+                        }
+                    }
+                    libraryModel.commit();
+                }
+            }
+        }
+
+        // Add libraries from endorsed
+        VirtualFile endorsedDir = rootDirectory.findChild("endorsed");
+        if (endorsedDir != null && endorsedDir.isDirectory()) {
+            // Create a library for all JARs in the lib directory
+            Library library = modifiableRootModel.getModuleLibraryTable().createLibrary("EndorsedLibs");
+            Library.ModifiableModel libraryModel = library.getModifiableModel();
+            for (VirtualFile jarFile : endorsedDir.getChildren()) {
+                if (jarFile.getExtension() != null && jarFile.getExtension().equalsIgnoreCase("jar")) {
+                    VirtualFile jarRoot = com.intellij.openapi.vfs.JarFileSystem.getInstance().getJarRootForLocalFile(jarFile);
+                    if (jarRoot != null) {
+                        libraryModel.addRoot(jarRoot, OrderRootType.CLASSES);
+                    }
+                }
+            }
+            libraryModel.commit();
+
+            // Set the scope to PROVIDED for the EndorsedLibs library
+            for (OrderEntry orderEntry : modifiableRootModel.getOrderEntries()) {
+                if (orderEntry instanceof LibraryOrderEntry &&
+                        ((LibraryOrderEntry) orderEntry).getLibraryName() != null &&
+                        ((LibraryOrderEntry) orderEntry).getLibraryName().equals("EndorsedLibs")) {
+                    ((LibraryOrderEntry) orderEntry).setScope(DependencyScope.PROVIDED);
+                    break;
+                }
+            }
+        }
+
+        // Add Tomcat library from global libraries as provided
+        LibraryTable.ModifiableModel globalLibraryTable = LibraryTablesRegistrar.getInstance().getLibraryTable().getModifiableModel();
+        Library tomcatLibrary = null;
+
+        // Look for Smart Tomcat library in global libraries
+        for (Library library : globalLibraryTable.getLibraries()) {
+            if (library.getName() != null && library.getName().equals(tomcatName)) {
+                tomcatLibrary = library;
+                break;
+            }
+        }
+
+        if (tomcatLibrary != null) {
+            // Add the Tomcat library to the module with PROVIDED scope
+            LibraryOrderEntry tomcatEntry = modifiableRootModel.addLibraryEntry(tomcatLibrary);
+            tomcatEntry.setScope(DependencyScope.PROVIDED);
+        }
+
+        // Commit all changes
+        modifiableRootModel.commit();
+    }
+
     private void configureModuleStructure(Project project, Module module, VirtualFile rootDirectory) {
+
         ModuleRootManager rootManager = ModuleRootManager.getInstance(module);
         ModifiableRootModel modifiableRootModel = rootManager.getModifiableModel();
 
@@ -167,6 +285,7 @@ public class SetupWebAppRootAction extends AnAction implements ActionUpdateThrea
             compilerExtension.setCompilerOutputPathForTests(outputDir);
         }
 
+        /*
         // Add libraries from endorsed
         VirtualFile endorsedDir = rootDirectory.findChild("endorsed");
         if (endorsedDir != null && endorsedDir.isDirectory()) {
@@ -215,16 +334,18 @@ public class SetupWebAppRootAction extends AnAction implements ActionUpdateThrea
                     libraryModel.commit();
                 }
             }
-        }
+        } */
 
         // Commit all changes
         modifiableRootModel.commit();
 
         // Configure Smart Tomcat if available
-        configureTomcatRunConfiguration(project, module, rootDirectory);
+        TomcatRunConfiguration runConfig = configureTomcatRunConfiguration(project, module, rootDirectory);
+        updateModuleLibraries(project, module, rootDirectory, runConfig.getTomcatInfo().getName());
+
     }
 
-    private void configureTomcatRunConfiguration(Project project, Module module, VirtualFile rootDirectory) {
+    private TomcatRunConfiguration configureTomcatRunConfiguration(Project project, Module module, VirtualFile rootDirectory) {
 
         RunManager runManager = RunManager.getInstance(project);
 
@@ -241,7 +362,6 @@ public class SetupWebAppRootAction extends AnAction implements ActionUpdateThrea
 
         if(newSettings) {
             // Set Tomcat home path - this would need to be detected or provided
-            //String tomcatHomePath = System.getProperty("user.home") + "/.SmartTomcat/"+project.getName();
             Path tomcatHomePath = Paths.get(System.getProperty("user.home"), ".SmartTomcat", project.getName());
             configuration.setCatalinaBase(tomcatHomePath.toFile().getAbsolutePath());
 
@@ -270,6 +390,8 @@ public class SetupWebAppRootAction extends AnAction implements ActionUpdateThrea
         }
 
         runManager.setSelectedConfiguration(settings);
+
+        return (TomcatRunConfiguration) settings.getConfiguration();
     }
 
     @Override

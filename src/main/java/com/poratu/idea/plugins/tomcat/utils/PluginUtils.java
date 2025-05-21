@@ -31,6 +31,7 @@ import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerFactory;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -218,7 +219,7 @@ public final class PluginUtils {
 
         for (VirtualFile parentRoot : parentRoots) {
             fileIndex.iterateContentUnderDirectory(parentRoot, file -> {
-                Path path = Paths.get(file.getPath(), "WEB-INF/web.xml");
+                Path path = Paths.get(file.getPath(), "WEB-INF" + File.separator + "web.xml");
                 if (Files.exists(path)) {
                     webRoots.add(file);
                 }

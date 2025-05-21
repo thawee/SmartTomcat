@@ -230,14 +230,6 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
         if (getAllLogFiles().isEmpty()) {
             addPredefinedTomcatLogFiles();
         }
-
-        // for backward compatibility
-       // if (configurationModule.getModule() == null) {
-       //     configurationModule.setModule(PluginUtils.findContainingModule(tomcatOptions.getDocBase(), getProject()));
-      //  }
-
-        // Migrate from single webapp to multiple webapps
-       // migrateToMultipleWebapps();
     }
 
     @Override
@@ -273,23 +265,6 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
     public String getCatalinaBase() { return tomcatOptions.getCatalinaBase(); }
     public void setCatalinaBase(String catalinaBase) { tomcatOptions.setCatalinaBase(catalinaBase); }
 
-    /*
-    public String getDocBase() {
-        return tomcatOptions.getDocBase();
-    }
-
-    public void setDocBase(String docBase) {
-        tomcatOptions.setDocBase(docBase);
-    }
-
-    public String getContextPath() {
-        return tomcatOptions.getContextPath();
-    }
-
-    public void setContextPath(String contextPath) {
-        tomcatOptions.setContextPath(contextPath);
-    } */
-
     public List<WebappConfig> getWebappConfigs() {
         return tomcatOptions.getWebappConfigs();
     }
@@ -308,26 +283,6 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
     public void removeWebappConfig(WebappConfig webappConfig) {
         tomcatOptions.getWebappConfigs().remove(webappConfig);
     }
-
-    /*
-    // Method to migrate from single webapp to multiple webapps (for backward compatibility)
-    private void migrateToMultipleWebapps() {
-        if(tomcatOptions.getWebappConfigs() == null) {
-            tomcatOptions.setWebappConfigs(new ArrayList<>());
-        }
-
-        if (tomcatOptions.getWebappConfigs().isEmpty() &&
-                tomcatOptions.getDocBase() != null &&
-                tomcatOptions.getContextPath() != null) {
-
-            WebappConfig config = new WebappConfig(
-                    tomcatOptions.getDocBase(),
-                    tomcatOptions.getContextPath(),
-                    getModule()
-            );
-            tomcatOptions.getWebappConfigs().add(config);
-        }
-    } */
 
     public Integer getPort() {
         return tomcatOptions.getPort();
@@ -398,8 +353,6 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
         private TomcatInfo tomcatInfo;
 
         private String catalinaBase;
-        //private String docBase; // Keep these for backward compatibility
-        //private String contextPath; // Keep these for backward compatibility
         private List<WebappConfig> webappConfigs;
         private Integer port = 8080;
         private Integer sslPort;
@@ -428,24 +381,6 @@ public class TomcatRunConfiguration extends LocatableConfigurationBase<Locatable
         @Nullable
         public String getCatalinaBase() { return this.catalinaBase; }
         public void setCatalinaBase(String catalinaBase) { this.catalinaBase = catalinaBase; }
-
-        /*
-        @Nullable
-        public String getDocBase() {
-            return docBase;
-        }
-
-        public void setDocBase(String docBase) {
-            this.docBase = docBase;
-        }
-
-        public String getContextPath() {
-            return contextPath;
-        }
-
-        public void setContextPath(String contextPath) {
-            this.contextPath = contextPath;
-        } */
 
         public Integer getPort() {
             return port;
