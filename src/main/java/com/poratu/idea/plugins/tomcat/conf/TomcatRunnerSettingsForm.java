@@ -209,10 +209,10 @@ public class TomcatRunnerSettingsForm implements Disposable {
 
     private void initCatalinaBaseDirectory() {
         FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
-       // catalinaBaseField.addBrowseFolderListener("Select Catalina Base",
-       //         "Please select the Catalina Base directory",
-       //         project, descriptor);
-        catalinaBaseField.addBrowseFolderListener(project, descriptor);
+        catalinaBaseField.addBrowseFolderListener("Select Catalina Base",
+                "Please select the Catalina Base directory",
+                project, descriptor);
+       // catalinaBaseField.addBrowseFolderListener(project, descriptor);
     }
 
     private JPanel createWebappsPanel() {
