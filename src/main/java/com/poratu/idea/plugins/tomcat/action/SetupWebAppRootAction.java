@@ -26,7 +26,6 @@ import com.poratu.idea.plugins.tomcat.utils.PluginUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaResourceRootType;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -263,7 +262,7 @@ public class SetupWebAppRootAction extends AnAction implements ActionUpdateThrea
             }
 
             //confdev/WEB-INF
-            VirtualFile resourceDir = confDevDir.findChild("Resource");
+            VirtualFile resourceDir = confDevDir.findChild("WEB-INF");
             if (resourceDir != null && resourceDir.isDirectory()) {
                 // add confdev as resource
                 contentEntry.addSourceFolder(resourceDir.getUrl(), JavaResourceRootType.RESOURCE);
