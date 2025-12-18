@@ -1,4 +1,4 @@
-package com.poratu.idea.plugins.tomcat.action;
+package thawee.idea.plugins.tomcat.action;
 
 import com.intellij.execution.RunManager;
 import com.intellij.execution.RunnerAndConfigurationSettings;

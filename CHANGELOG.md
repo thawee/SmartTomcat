@@ -3,7 +3,17 @@
 
 ## Unreleased
 
-## [4.7.5]
+### Added
+
+## [4.7.5-20251218]
+
+### Added
+- add link to SmartTomcat for web.xml on explorer context menu
+- remove action "Mark Directory as -> Tomcat Webapp Root" to make java module and create tomcat run config
+- support both legacy eclipse project and idea project structure for tomcat webapp root marking
+
+
+## [4.7.5-20250716]
 
 ### Added
 - create global library for tomcat server
@@ -11,15 +21,14 @@
 - support multiple modules for each tomcat run configuration
 - support debug java code
 
+
+## [4.7.5]
+
 ### Fixed
 - Do not copy Tomcat configs file when /.smarttomcat//conf folder is empty (#141)
 - Enhance the XPath selector for port (#128)
 
 ## [4.7.4]
-
-### Added
-- add action "Mark Directory as -> Tomcat Webapp Root" to make java module and create tomcat run config
-- support multiple modules for each tomcat run configuration
 
 ### Fixed
 - write change log in plugin.xml

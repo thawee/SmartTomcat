@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.poratu.idea.plugins.tomcat</id>
-    <name>Smart Tomcat</name>
-    <vendor email="zengkid@msn.com">zengkid</vendor>
+    <name>Smart Tomcat (Enhanced)</name>
+    <vendor email="thaweemail@gmail.com">thawee.p, zengkid</vendor>
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
 
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
@@ -25,12 +25,23 @@
     </extensions>
 
     <actions>
-        <action id="com.poratu.idea.plugins.tomcat.action.SetupWebAppRootAction"
-                class="com.poratu.idea.plugins.tomcat.action.SetupWebAppRootAction"
+        <!--
+        <action id="thawee.idea.plugins.tomcat.action.SetupWebAppRootAction"
+                class="thawee.idea.plugins.tomcat.action.SetupWebAppRootAction"
                 text="Tomcat Webapp Root"
                 icon="/icon/tomcat.svg"
                 description="Webapp directory">
             <add-to-group group-id="MarkRootGroup" anchor="last"/>
+        </action>
+        -->
+
+        <action id="thawee.idea.plugins.tomcat.action.LinkSmartTomcatModuleAction"
+                class="thawee.idea.plugins.tomcat.action.LinkSmartTomcatModuleAction"
+                icon="/icon/tomcat.svg"
+                text="Link SmartTomcat Module"
+                description="Webapp web.xml file">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
         </action>
     </actions>
 
