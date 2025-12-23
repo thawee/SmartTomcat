@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.poratu.idea.plugins.tomcat</id>
     <name>Smart Tomcat (Enhanced)</name>
-    <vendor email="thaweemail@gmail.com">thawee.p, zengkid</vendor>
+    <vendor email="thaweemail@gmail.com">zengkid, thawee.p</vendor>
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
 
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html

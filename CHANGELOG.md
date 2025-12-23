@@ -5,13 +5,13 @@
 
 ### Added
 
-## [4.7.5-20251218]
+## [4.7.5-ktbg.1]
 
 ### Added
 - add link to SmartTomcat for web.xml on explorer context menu
 - remove action "Mark Directory as -> Tomcat Webapp Root" to make java module and create tomcat run config
 - support both legacy eclipse project and idea project structure for tomcat webapp root marking
-
+- exclude servlet, jsp api from endorsed libs to avoid classloading conflict
 
 ## [4.7.5-20250716]
 

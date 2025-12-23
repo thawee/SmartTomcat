@@ -36,7 +36,7 @@ import java.util.Locale;
 
 public class LinkSmartTomcatModuleAction extends AnAction implements ActionUpdateThreadAware {
 
-    private @NotNull String PLUGIN_ID = "com.poratu.idea.plugins.tomcat";
+    private final @NotNull String PLUGIN_ID = "com.poratu.idea.plugins.tomcat";
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
@@ -87,29 +87,12 @@ public class LinkSmartTomcatModuleAction extends AnAction implements ActionUpdat
         }
         return null;
     }
-    /*
-    private static @Nullable VirtualFile getRootProjectDir(VirtualFile selectedFile) {
-        // support project_root/WebContent/WEB-INF/web.xml
-        // support project_root/src/main/webapp/WEB-INF/web.xml
-        if(selectedFile != null && "web.xml".equals(selectedFile.getName())) {
-            VirtualFile parent = selectedFile.getParent(); // WEB-INF
-            if(parent != null) {
-                selectedFile = parent.getParent(); // WebContent
-                if(selectedFile != null) {
-                    selectedFile = selectedFile.getParent(); // project
-                }
-            }
-        }else {
-            selectedFile = null;
-        }
-        return selectedFile;
-    } */
 
     private void checkAndMakeModuleRoot(Project project, VirtualFile directory) {
         ModuleManager moduleManager = ModuleManager.getInstance(project);
         Module[] modules = moduleManager.getModules();
         Module existingModule = null;
-        String title = "SmartTomcat Project";
+        String title = "SmartTomcat";
 
         // Check if this directory is already a module root
         for (Module module : modules) {
@@ -131,12 +114,15 @@ public class LinkSmartTomcatModuleAction extends AnAction implements ActionUpdat
             Module finalExistingModule = existingModule;
             ApplicationManager.getApplication().runWriteAction(() -> {
                 // Configure Tomcat run configuration
-                TomcatRunConfiguration runConfig = configureTomcatRunConfiguration(project, finalExistingModule, directory);
+                //TomcatRunConfiguration runConfig = configureTomcatRunConfiguration(project, finalExistingModule, directory);
 
                 // Update existing module structure
-                updateModuleLibraries(project, finalExistingModule, directory, runConfig.getTomcatInfo().getName());
+                // updateModuleLibraries(project, finalExistingModule, directory, runConfig.getTomcatInfo().getName());
 
-                String content ="Java module is updated with dependencies, and added to tomcat run configuration";
+                // Configure module structure
+                configureModuleStructure(project, finalExistingModule, directory);
+
+                String content =finalExistingModule.getName()+" module is updated with dependencies, and added to tomcat run configuration";
                 Notification notification = new Notification(PLUGIN_ID, title, content, NotificationType.INFORMATION);
                 Notifications.Bus.notify(notification);
             });
@@ -159,7 +145,7 @@ public class LinkSmartTomcatModuleAction extends AnAction implements ActionUpdat
                     // Configure module structure
                     configureModuleStructure(project, newModule, directory);
 
-                    String content ="New java module is created, and added to tomcat run configuration";
+                    String content ="New "+newModule.getName()+" module is created, and added to tomcat run configuration";
                     Notification notification = new Notification(PLUGIN_ID, title, content, NotificationType.INFORMATION);
                     Notifications.Bus.notify(notification);
                 });
@@ -238,7 +224,7 @@ public class LinkSmartTomcatModuleAction extends AnAction implements ActionUpdat
             for (VirtualFile jarFile : endorsedDir.getChildren()) {
                 if (jarFile.getExtension() != null && jarFile.getExtension().equalsIgnoreCase("jar")) {
                     VirtualFile jarRoot = com.intellij.openapi.vfs.JarFileSystem.getInstance().getJarRootForLocalFile(jarFile);
-                    if (jarRoot != null) {
+                    if (isValidEndorsedJar(jarRoot)) {
                         libraryModel.addRoot(jarRoot, OrderRootType.CLASSES);
                     }
                 }
@@ -276,6 +262,21 @@ public class LinkSmartTomcatModuleAction extends AnAction implements ActionUpdat
 
         // Commit all changes
         modifiableRootModel.commit();
+    }
+
+    private boolean isValidEndorsedJar(VirtualFile jarRoot) {
+        if (jarRoot == null) return false;
+        String path = jarRoot.getPath();
+        int index = path.lastIndexOf("!/");
+        if (index != -1) {
+            path = path.substring(0, index);
+        }
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        return !name.contains("tomcat") &&
+                !name.contains("servlet-api") &&
+                !name.contains("jsp-api") &&
+                !name.contains("gwt-dev") &&
+                !name.contains("gwt-user");
     }
 
     private void configureModuleStructure(Project project, Module module, VirtualFile rootDirectory) {

@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+@Deprecated
 public class SetupWebAppRootAction extends AnAction implements ActionUpdateThreadAware {
 
     private @NotNull String PLUGIN_ID = "com.poratu.idea.plugins.tomcat";
